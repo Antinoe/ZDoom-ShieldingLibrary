@@ -1,0 +1,30 @@
+
+AddOptionMenu "OptionsMenu"{
+	Submenu "Shielding","ShieldingOptions"
+}
+OptionMenu "ShieldingOptions"{
+	Title "Shielding"
+	Submenu "Info","ShieldingInfo"
+	StaticText ""
+	Option "Debug Messages","shielding_debug","OnOff"
+	StaticText "Enables debug messages for, well, debugging."
+	StaticText "$SINOPT_DEFOFF",1
+	StaticText ""
+	Option "Proportional Shielding","shielding_proportionalshielding","OnOff"
+	StaticText "Max Shielding granted is proportional to the wearer's Health."
+	StaticText "(50 HP + 100 SHLD = 150 SHLD = 200 TOTAL)"
+	StaticText "(100 HP + 100 SHLD = 200 SHLD = 300 TOTAL)"
+	StaticText "(600 HP + 100 SHLD = 700 SHLD = 13,000 TOTAL)"
+	StaticText "$SINOPT_DEFOFF",1
+	StaticText ""
+	Option "Give Monsters Shielding","shielding_monstershielding","OnOff"
+	StaticText "Gives Energy Shields to any monsters that spawn."
+	StaticText "$SINOPT_DEFOFF",1
+}
+OptionMenu "ShieldingInfo"{
+	Title "Information"
+	StaticText ""
+	StaticText "This is a library for developers to use."
+	StaticText "It allows you to create powerups that grant Energy Shielding."
+	StaticText "Check shieldingexamples.zs in the zscript folder if you're looking to use this."
+}

@@ -1,0 +1,11 @@
+
+shielding/hit dspistol;
+shielding/siphon dsradio;
+shielding/low dstink;
+shielding/depleted dsradio;
+shielding/charge dsradio;
+$pitchset shielding/hit 5;
+$pitchset shielding/siphon 5;
+$pitchset shielding/low 2;
+$pitchset shielding/depleted 0.25;
+$pitchset shielding/charge 2;

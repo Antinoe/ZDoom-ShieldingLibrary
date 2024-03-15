@@ -1,0 +1,4 @@
+GameInfo{
+	//	It's necessary to add Event Handlers to GameInfo so they can run.
+	AddEventHandlers = "ExampleShieldingEventHandler"
+}

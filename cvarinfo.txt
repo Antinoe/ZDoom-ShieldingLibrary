@@ -1,0 +1,5 @@
+
+server bool shielding_debug = false;
+server bool shielding_monstershielding = false;
+server bool shielding_proportionalshielding = false;
+server bool shielding_skull_streaking = false;

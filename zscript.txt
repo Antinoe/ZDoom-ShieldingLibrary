@@ -1,0 +1,223 @@
+version "4.0"
+#include "zscript/shieldingexamples.zs"
+
+Class PowerShielding : PowerProtection{
+	//	Initial amount when powerup is given.
+	int shieldingAmount; property ShieldingAmount : shieldingAmount;
+	//	Max amount.
+	int shieldingMaxAmount; property ShieldingMaxAmount : shieldingMaxAmount;
+	//	Delay after being struck to start charging again.
+	int shieldingRegenDelay; property ShieldingRegenDelay : shieldingRegenDelay;
+	int shieldingRegenDelayCurrent;
+	//	Damage reduction given. A value of 0.5 cuts damage in half.
+	double shieldingProtection; property ShieldingProtection : shieldingProtection;
+	//	Same as above, except this is for when shielding is depleted.
+	double suitProtection; property SuitProtection : suitProtection;
+	//	A toggle to determine whether or not shielding is on.
+	//	Switching it on/off will enable/disable shielding.
+	bool shieldingActive; property ShieldingActive : shieldingActive;
+	//	Delay in ticks. A value of 1 is faster than 5.
+	int shieldingRegenRate; property ShieldingRegenRate : shieldingRegenRate;
+	int shieldingRegenRateCurrent;
+	int shieldingRegenAmount; property shieldingRegenAmount : shieldingRegenAmount;
+	int shieldingLowSoundTimer;
+	int shieldingDepletedSoundTimer;
+	//	Merely used for `ShieldBeginCharge()`.
+	bool shieldDamaged;
+	//	Whether or not shielding depletes.
+	bool shieldingDecayable; property ShieldingDecayable : shieldingDecayable;
+	//	Whether or not shielding can recharge.
+	bool shieldingRechargeable; property ShieldingRechargeable : shieldingRechargeable;
+	//	Whether or not shielding can be restored by dealing damage.
+	bool shieldingSiphon; property ShieldingSiphon : shieldingSiphon;
+	string hitSound; property HitSound : hitSound;
+	string siphonSound; property SiphonSound : siphonSound;
+	string lowSound; property LowSound : lowSound;
+	string depletedSound; property DepletedSound : depletedSound;
+	string chargeSound; property ChargeSound : chargeSound;
+	Default{
+		Inventory.Icon "SUITA0";
+		Powerup.Duration 0x7FFFFFFF;
+		PowerShielding.ShieldingRechargeable 1;
+		PowerShielding.ShieldingAmount 0;
+		PowerShielding.ShieldingMaxAmount 100;
+		PowerShielding.ShieldingRegenDelay 175;
+		PowerShielding.ShieldingRegenRate 1;
+		PowerShielding.ShieldingRegenAmount 1;
+		PowerShielding.ShieldingProtection 1;
+		PowerShielding.SuitProtection 1;
+		PowerShielding.HitSound "halo3/shieldhit";
+		PowerShielding.SiphonSound "halo3/shieldsiphon";
+		PowerShielding.LowSound "halo3/shieldlow";
+		PowerShielding.DepletedSound "halo3/shielddepleted";
+		PowerShielding.ChargeSound "halo3/shieldcharge";
+	}
+	Override void PostBeginPlay(){
+		If(cvar.GetCVar('shielding_proportionalshielding').getbool()){
+			shieldingAmount=shieldingAmount+owner.Health;
+			shieldingMaxAmount=shieldingMaxAmount+owner.Health;
+		}
+		Else{
+			shieldingAmount=shieldingAmount;
+			shieldingMaxAmount=shieldingMaxAmount;
+		}
+		If(cvar.GetCVar('shielding_skull_streaking').getbool()){
+			shieldingDecayable = 1;
+			shieldingRechargeable = 0;
+			shieldingSiphon = 1;
+		}
+		/*Else{
+			shieldingDecayable = 0;
+			shieldingRechargeable = 1;
+			shieldingSiphon = 0;
+		}*/
+		shieldingActive=1;
+		shieldingRegenRateCurrent=1;
+		shieldingLowSoundTimer=5;
+		shieldingDepletedSoundTimer=5;
+	}
+	Override void InitEffect(){
+	}
+	Override void DoEffect(){
+		If(shieldingActive && shieldingAmount < shieldingMaxAmount){
+			shieldingRegenDelayCurrent--;
+			shieldingRegenRateCurrent--;
+			If(shieldingRegenDelayCurrent <= 0 && shieldingRegenRateCurrent <= 0){
+				If(shieldingRechargeable){
+					shieldingRegenRateCurrent=shieldingRegenRate;
+					ShieldCharge();
+				}
+			}
+			If(shieldingDecayable){ShieldDecay();}
+			double shield = double(shieldingAmount) / double(shieldingMaxAmount);
+			If(shield <= 0.25){ShieldLow();}
+			If(shield <= 0){ShieldDepleted();}
+		}
+	}
+	//	Self-explanatory.
+	Virtual void ShieldActivate(){
+		shieldingActive=1;
+		If(cvar.GetCVar('shielding_debug').getbool()){owner.A_Print("SHIELDING ACTIVATED",0.25);}
+	}
+	//	Self-explanatory.
+	Virtual void ShieldDeactivate(){
+		//shieldingAmount=0;
+		shieldingActive=0;
+		If(cvar.GetCVar('shielding_debug').getbool()){owner.A_Print("SHIELDING DEACTIVATED",0.25);}
+	}
+	//	Runs every time Shielding decays. By default, this is only called when the `Streaking` skull is on.
+	Virtual void ShieldDecay(){
+		shieldingAmount--;
+		If(cvar.GetCVar('shielding_debug').getbool()){owner.A_Print("SHIELDING DECAYS",0.25);}
+	}
+	//	Runs every time Shielding takes damage.
+	Virtual void ShieldHit(){
+		//	This is here to prevent the Charging sound from continuing after being struck.
+		owner.A_StopSound(CHAN_BODY);
+		owner.A_StartSound(hitSound,CHAN_AUTO,CHANF_OVERLAP);
+		shieldingRegenDelayCurrent=shieldingRegenDelay;
+		shieldDamaged=true;
+		//	Need to do something with this.
+		//owner.A_SetTranslation("Translucent");
+		ShieldingColorShort();
+		If(cvar.GetCVar('shielding_debug').getbool()){owner.A_Print("SHIELDING DAMAGED",0.25);owner.A_LogInt(shieldingAmount);}
+	}
+	//	Runs every time Shielding is added through conditions like the Streaking skull.
+	Virtual void ShieldSiphon(){
+		owner.A_StartSound(siphonSound,CHAN_AUTO,CHANF_OVERLAP);
+		ShieldingColorShort();
+		If(cvar.GetCVar('shielding_debug').getbool()){owner.A_Print("SHIELDING SIPHONED",0.25);owner.A_LogInt(shieldingAmount);}
+	}
+	//	Runs every tick when Shielding is between 1% and 25%.
+	Virtual void ShieldLow(){
+		If(cvar.GetCVar('shielding_debug').getbool()){owner.A_Print("SHIELDING LOW",0.25);}
+		shieldingLowSoundTimer--;
+		If(shieldingLowSoundTimer <= 0){
+			shieldingLowSoundTimer=5;
+			owner.A_StartSound(lowSound,CHAN_AUTO,CHANF_OVERLAP);
+		}
+	}
+	//	Runs every tick when Shielding is at 0%.
+	Virtual void ShieldDepleted(){
+		If(cvar.GetCVar('shielding_debug').getbool()){owner.A_Print("SHIELDING DEPLETED",0.25);}
+		shieldingDepletedSoundTimer--;
+		If(shieldingDepletedSoundTimer <= 0){
+			shieldingDepletedSoundTimer=5;
+			owner.A_StartSound(depletedSound,CHAN_AUTO,CHANF_OVERLAP);
+		}
+	}
+	//	Runs every time Shielding begins to charge.
+	Virtual void ShieldBeginCharge(){
+		If(cvar.GetCVar('shielding_debug').getbool()){owner.A_Print("SHIELDING BEGINS TO CHARGE",0.25);}
+		owner.A_StartSound(chargeSound,CHAN_BODY,CHANF_OVERLAP);
+		shieldDamaged=false;
+	}
+	//	Runs every tick that Shielding charges.
+	Virtual void ShieldCharge(){
+		ShieldingColorLong();
+		If(shieldDamaged){ShieldBeginCharge();}
+		If(shieldingAmount <= 0){shieldingAmount=1;}
+		shieldingAmount += shieldingRegenAmount;
+		If(cvar.GetCVar('shielding_debug').getbool()){owner.A_Print("SHIELDING CHARGES",0.25);owner.A_LogInt(shieldingAmount);}
+	}
+	//	Amount-based colors.
+	Void ShieldingColorShort(){
+		double shield = double(shieldingAmount) / double(shieldingMaxAmount);
+		If(shield <= 0){owner.A_SetBlend("LightPink",0.50,70);}
+		Else If(shield <= 0.24){owner.A_SetBlend("Red",0.35,15);}
+		Else If(shield <= 0.49){owner.A_SetBlend("Orange",0.35,15);}
+		Else If(shield <= 0.74){owner.A_SetBlend("Yellow",0.35,15);}
+		Else If(shield <= 0.99){owner.A_SetBlend("LightBlue",0.35,15);}
+		//	Overshield
+		Else If(shield >= 1){owner.A_SetBlend("LightGreen",0.35,15);}
+	}
+	Void ShieldingColorLong(){
+		double shield = double(shieldingAmount) / double(shieldingMaxAmount);
+		If(shield <= 0.24){owner.A_SetBlend("Red",0.15,35);}
+		Else If(shield <= 0.49){owner.A_SetBlend("Orange",0.15,35);}
+		Else If(shield <= 0.74){owner.A_SetBlend("Yellow",0.15,35);}
+		Else If(shield <= 0.99){owner.A_SetBlend("LightBlue",0.15,35);}
+		//	Overshield
+		Else If(shield >= 1){owner.A_SetBlend("LightGreen",0.15,35);}
+	}
+	Override void ModifyDamage (int damage, Name damageType, out int newdamage, bool passive, Actor inflictor, Actor source, int flags){
+		If(source && passive){
+			If(shieldingActive && shieldingAmount > 0){
+				newdamage=0;
+				//	Jarewill showed this to me. I need to use it.
+				//ApplyDamageFactors(self, damageType, damage, damage);
+				double reducedDamage = (damage * shieldingProtection);
+				shieldingAmount -= reducedDamage;
+				If(cvar.GetCVar('shielding_debug').getbool()){owner.A_LogInt(reducedDamage);}
+				ShieldHit();
+			}
+			Else{
+				double reducedDamage = (damage * suitProtection);
+				newdamage = reducedDamage;
+			}
+		}
+		If(shieldingSiphon){
+			If(!passive && inflictor){
+				If(shieldingAmount <= 0){shieldingAmount = 1;}
+				int shieldingMaxOvershield = shieldingMaxAmount * 2;
+				int streakingDamage = damage / 8;
+				If(shieldingAmount <= shieldingMaxOvershield){shieldingAmount += streakingDamage; ShieldSiphon();}
+			}
+		}
+	}
+	Override void AbsorbDamage(int damage, Name damageType, out int newdamage, Actor inflictor, Actor source, int flags){
+		If(damageType=="Slime"||damageType=="Fire"){
+			If(shieldingActive && shieldingAmount > 0){
+				newdamage=0;
+				double reducedDamage = (damage * shieldingProtection);
+				shieldingAmount -= reducedDamage;
+				If(cvar.GetCVar('shielding_debug').getbool()){owner.A_LogInt(reducedDamage);}
+				ShieldHit();
+			}
+			Else{
+				double reducedDamage = (damage * suitProtection);
+				newdamage = reducedDamage;
+			}
+		}
+	}
+}
