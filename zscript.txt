@@ -182,7 +182,7 @@ Class PowerShielding : PowerProtection{
 	}
 	Override void ModifyDamage (int damage, Name damageType, out int newdamage, bool passive, Actor inflictor, Actor source, int flags){
 		If(source && passive){
-			If(shieldingActive && shieldingAmount > 0){
+			If(shieldingActive && shieldingAmount > 0 && damage > 0){
 				newdamage=0;
 				//	Jarewill showed this to me. I need to use it.
 				//ApplyDamageFactors(self, damageType, damage, damage);
